@@ -1,7 +1,6 @@
+from StockData import StockData
 
 
-class Indicator:
-    def __init__(self):
-        pass
-
-
+class IndicatorBase:
+    def __init__(self, ticker):
+        self.ticker = StockData
