@@ -6,6 +6,10 @@ class StockDatumEntry:
         self._rawData = rawData
 
     @property
+    def tickerName(self):
+        return None
+
+    @property
     def datetime(self):
         # year-month-date hour-minute-second
         return processRawDateTime(self._rawData["datetime"])
@@ -32,7 +36,7 @@ class StockDatumEntry:
 
     @property
     def indicators(self):
-        return
+        return Indicators(self._rawData)
 
 
 class Indicators:
@@ -69,7 +73,7 @@ class Indicators:
 
     @property
     def stoch(self):
-        pass
+        return {"slow_k": float(self._rawData["slow_k"]), "slow_d": float(self._rawData["slow_d"])}
 
 
 def processRawDateTime(rawDateTime):
