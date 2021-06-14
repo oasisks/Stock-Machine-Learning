@@ -1,22 +1,18 @@
-file = open(
-    "nasdaq_screener_1623280440492.csv",
-    "r",
-    encoding="utf-8"
-)
+import csv
 
 tickers = []
-for index, line in enumerate(file):
-    if index == 0:
-        continue
-    line = line.split(",")
-    tickers.append(line[0])
-    print(line)
+with open("12data_stocks.csv", "r", encoding="utf-8") as csvFile:
+    csvReader = csv.DictReader(csvFile, delimiter=";")
+
+    count = 0
+    for index, row in enumerate(csvReader):
+        # we only want NYSE and NASDAQ (for now at least)
+        if row["exchange"] in ["NYSE", "NASDAQ"]:
+            tickers.append(row["symbol"].strip("\n"))
 
 print(tickers)
-file.close()
+tickersFile = open("tickers.txt", "w", encoding="utf-8")
 
-tickerFile = open("tickers.txt", "w", encoding="utf-8")
+tickersFile.write("\n".join(tickers))
 
-tickerFile.write("\n".join(tickers))
-
-tickerFile.close()
+tickersFile.close()

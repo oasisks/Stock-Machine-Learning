@@ -1,7 +1,7 @@
-from twelvedata import TDClient
-from twelvedata.exceptions import BadRequestError
+from twelvedata.exceptions import BadRequestError, TwelveDataError
 from twelvedata import TDClient
 from dotenv import load_dotenv
+from time import sleep
 from json import dump, load
 from datetime import datetime
 from StockData import StockDatumEntry, processRawDateTime
@@ -52,7 +52,8 @@ def getData(symbol, interval: str, startDate: str, endDate: str, outputSize=5000
     :return: bool
     """
     td = TDClient(apikey=APIKEY)
-    try:
+
+    def requestData():
         ts = td.time_series(
             symbol=symbol,
             interval=interval,
@@ -64,9 +65,12 @@ def getData(symbol, interval: str, startDate: str, endDate: str, outputSize=5000
         # for datum in data:
         #     print(datum)
         saveJsonFile("data.json", data)
+
+    try:
+        requestData()
         return True
-    except Exception as e:
-        print(f"The given symbol does is not within twelve data API. The program will skip this entry. Error: {e}")
+    except BadRequestError as be:
+        print(f"{be} Skip the ticker {symbol}.")
         return False
 
 
@@ -117,7 +121,7 @@ def createTable(conn, createTableSQL: str):
 def insertData(conn, insertDataSQL):
     c = conn.cursor()
     c.execute(insertDataSQL)
-    print("Data has been inserted")
+    print("Data inserted")
 
 
 def saveProgress(index, ticker):
@@ -140,10 +144,14 @@ def getProgress(fileName: str = "progress.txt"):
     """
     file = open("progress.txt", "r", encoding="utf-8")
     progress = None
-    for line in file:
-        progress = line.split(",")
+    # if the progress is not empty
+    if not os.stat("progress.txt").st_size == 0:
+        for line in file:
+            progress = line.split(",")
 
-    file.close()
+        file.close()
+        return progress
+
     return progress
 
 
@@ -167,8 +175,40 @@ def tableExists(conn, tableName):
     return False
 
 
+def update(ticker, conn):
+    # we start from the very beginning
+    validTicker = getData(ticker, "1day", "2000-01-01", "2015-12-31")
+
+    if validTicker:
+        stockData = loadData()  # cached data located in data.json by default
+
+        for date, data in stockData.items():
+            SQL_COMMAND_INSERT_DATA = f'''INSERT INTO Stocks
+                                        (Ticker,
+                                        Date,
+                                        Open,
+                                        High,
+                                        Low,
+                                        Close,
+                                        Volume,
+                                        Adx,
+                                        Bbands,
+                                        EMA,
+                                        MACD,
+                                        PercentB,
+                                        RSI,
+                                        STOCH) VALUES
+                                        ("{str(ticker)}", "{str(data.datetime)}", "{str(data.open)}",
+                                        "{str(data.high)}", "{str(data.low)}", "{str(data.close)}", "{str(data.volume)}",
+                                        "{str(data.indicators.adx)}", "{str(data.indicators.bbands)}",
+                                        "{str(data.indicators.ema)}", "{str(data.indicators.macd)}",
+                                        "{str(data.indicators.percentB)}",
+                                        "{str(data.indicators.rsi)}", "{str(data.indicators.stoch)}");'''
+            insertData(conn, SQL_COMMAND_INSERT_DATA)
+
+
 def updateDatabase(tickersFileName):
-    file = open(tickersFileName, "r", encoding="utf-8")
+    tickersFile = open(tickersFileName, "r", encoding="utf-8")
     conn = createConnection()
 
     if not tableExists(conn, "Stocks"):
@@ -189,81 +229,32 @@ def updateDatabase(tickersFileName):
                                     STOCH text);'''
         createTable(conn, SQL_COMMAND_CREATE_TABLE)
 
-    for index, ticker in enumerate(file):
-        progress = getProgress()
+    for index, ticker in enumerate(tickersFile):
+        progress = getProgress()  # [index, ticker]
+        print(f"Progress: {progress}, Index: {index}")
+        # if there is zero progress
+        if progress is None:
+            # we start updating from the beginning
+            update(ticker, conn)
 
-        print(progress)
+            # save the current progress
+            saveProgress(index, ticker)
 
+            # commit to the database
+            conn.commit()
+        # if there is progress, we resume from the index + 1 of the previous progress index
+        elif index > int(progress[0]):
+            update(ticker, conn)
 
+            # save the current progress
+            saveProgress(index, ticker)
 
+            # commit to the database
+            conn.commit()
+        if index == 20:
+            break
 
-
-# def updateDatabase(tickersFile, createATable=True):
-#     conn = createConnection("data.db")
-#     SQL_COMMAND_CREATE_TABLE = '''CREATE TABLE Stocks
-#                                 (Ticker text,
-#                                 Date text,
-#                                 Open text,
-#                                 High text,
-#                                 Low text,
-#                                 Close text,
-#                                 Volume text,
-#                                 Adx text,
-#                                 Bbands text,
-#                                 EMA text,
-#                                 MACD text,
-#                                 PercentB text,
-#                                 RSI text,
-#                                 STOCH text);'''
-#
-#     # if we want to create a table
-#     if createATable:
-#         createTable(conn, createTableSQL=SQL_COMMAND_CREATE_TABLE)
-#     else:
-#         for index, ticker in enumerate(tickersFile):
-#             saveProgress(index, ticker)
-#             file = open("saveFile.txt", "r", encoding="utf-8")
-#             fileIndex = 0
-#             for line in file:
-#                 line = line.split(",")
-#                 fileIndex = int(line[0])
-#             file.close()
-#
-#             # if the index value if higher or equal to the previous stopping index
-#             if index >= fileIndex:
-#                 # we continue adding data to the database from that index
-#                 print(f"{index}, {ticker}")
-#                 isAvailable = getData(ticker, "1day", "2000-01-01", "2010-12-31")  # returns whether or not this ticker exists
-#                 if isAvailable:
-#                     stockData = loadData("data.json")
-#                     for date, data in stockData.items():
-#                         SQL_COMMAND_INSERT_DATA = f'''INSERT INTO Stocks
-#                                                     (Ticker,
-#                                                     Date,
-#                                                     Open,
-#                                                     High,
-#                                                     Low,
-#                                                     Close,
-#                                                     Volume,
-#                                                     Adx,
-#                                                     Bbands,
-#                                                     EMA,
-#                                                     MACD,
-#                                                     PercentB,
-#                                                     RSI,
-#                                                     STOCH) VALUES
-#                                                     ("{str(ticker)}", "{str(data.datetime)}", "{str(data.open)}",
-#                                                     "{str(data.high)}", "{str(data.low)}", "{str(data.close)}", "{str(data.volume)}",
-#                                                     "{str(data.indicators.adx)}", "{str(data.indicators.bbands)}",
-#                                                     "{str(data.indicators.ema)}", "{str(data.indicators.macd)}",
-#                                                     "{str(data.indicators.percentB)}",
-#                                                     "{str(data.indicators.rsi)}", "{str(data.indicators.stoch)}");'''
-#                         print(SQL_COMMAND_INSERT_DATA)
-#                         insertData(conn, SQL_COMMAND_INSERT_DATA)
-#                     break
-#             break
-#     conn.commit()
-#     conn.close()
+    conn.close()
 
 
 # stockData = loadData("data.json")
@@ -275,6 +266,7 @@ def updateDatabase(tickersFileName):
 # #
 # # createTable(conn, SQLCOMMAND)
 # conn.cursor().execute('''INSERT INTO SNDL (Ticker, Date) Values ('SNDL', '2021-05-01 00:00:00')''')
+
 
 updateDatabase("tickers.txt")
 
