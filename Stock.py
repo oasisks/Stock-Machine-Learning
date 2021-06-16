@@ -3,6 +3,7 @@ from twelvedata import TDClient
 from dotenv import load_dotenv
 from time import sleep
 from json import dump, load
+from Indicators import Indicators
 from datetime import datetime
 import os
 import sqlite3
@@ -22,19 +23,19 @@ def saveJsonFile(fileName="data.json", data=None):
         dump(data, jsonFile)
 
 
-def saveProgress(tickers):
-    progressFile = open("progress.txt", "a", encoding="utf-8")
+def saveProgress(tickers, fileName="progress.txt"):
+    progressFile = open(fileName, "a", encoding="utf-8")
     tickers[0] = "\n" + tickers[0]
     progressFile.write("\n".join(tickers))
     progressFile.close()
     print("SAVED PROGRESS.")
 
 
-def getProgress():
-    if os.stat("progress.txt").st_size == 0:
+def getProgress(fileName="progress.txt"):
+    if os.stat(fileName).st_size == 0:
         return None
 
-    progressFile = open("progress.txt", "r", encoding="utf-8")
+    progressFile = open(fileName, "r", encoding="utf-8")
     progress = [ticker.strip("\n") for ticker in progressFile]
 
     return progress
@@ -70,6 +71,15 @@ def insertData(conn, insertDataSQL):
     c = conn.cursor()
     c.execute(insertDataSQL)
     print("Data inserted")
+
+
+def selectDataByTicker(conn, ticker):
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM Stocks WHERE Ticker=?", (ticker,))
+
+    rows = cur.fetchall()
+
+    return rows
 
 
 def tableExists(conn, tableName):
@@ -183,4 +193,23 @@ def getData():
         index += 1
 
 
-getData()
+def processData():
+    # create a connection to a data.db which contains the basic numeric information to perform indicator calculations
+    dataConn = createConnection()
+
+    # create another connection to a database file that will store the data in data.db and indicator values
+    newDataConn = createConnection(dbFile=".idea/completeData.db")
+
+    tickersFile = open("tickers.txt", "r", encoding="utf-8")
+    tickers = [ticker.strip("\n") for ticker in tickersFile]
+    tickersFile.close()
+
+    for ticker in tickers:
+        data = selectDataByTicker(dataConn, ticker)
+
+        indicators = Indicators(data)
+
+
+# getData()
+
+processData()
