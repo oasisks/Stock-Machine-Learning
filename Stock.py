@@ -207,9 +207,14 @@ def processData():
     for ticker in tickers:
         data = selectDataByTicker(dataConn, ticker)
 
+        # for row in data:
+        #     print(row)
         indicators = Indicators(data)
+        indicators.SMA()
+
+        break
 
 
-# getData()
+getData()
 
-processData()
+# processData()
