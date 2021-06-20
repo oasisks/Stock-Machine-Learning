@@ -9,8 +9,8 @@ class Indicators:
     def __init__(self, data):
         # Ticker, Date, Open, High, Low, Close, Volume
 
-        self._df = pd.DataFrame(data[::-1], columns=["Ticker", "Date", "Open", "High", "Low", "Close", "Volume"])
-        print(self._df.to_string())
+        self.df = pd.DataFrame(data[::-1], columns=["Ticker", "Date", "Open", "High", "Low", "Close", "Volume"])
+        print(self.df.to_string())
 
     def SMA(self, periods=15) -> dict:
         """
@@ -22,9 +22,9 @@ class Indicators:
         smas = {}
         queue = []
 
-        for index in range(len(self._df.index)):
-            date = self._df.Date[index]
-            close = self._df.Close[index]
+        for index in range(len(self.df.index)):
+            date = self.df.Date[index]
+            close = self.df.Close[index]
             if len(queue) > periods:
                 queue.pop(0)  # pop the first one out
 
@@ -83,10 +83,10 @@ class Indicators:
         # Calculate EMA
         emas = {}
         dates = []
-        for index in range(len(self._df.index)):
-            # print(f"Current Index: {index}, Previous Index: {index- 1}, Length of list: {len(self._df.index)}")
-            date = self._df.Date[index]
-            close = float(self._df.Close[index])
+        for index in range(len(self.df.index)):
+            # print(f"Current Index: {index}, Previous Index: {index- 1}, Length of list: {len(self.df.index)}")
+            date = self.df.Date[index]
+            close = float(self.df.Close[index])
             # we can only calculate ema after period
             if index < periods - 1:
                 emas[date] = None

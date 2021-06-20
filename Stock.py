@@ -23,10 +23,17 @@ def saveJsonFile(fileName="data.json", data=None):
         dump(data, jsonFile)
 
 
-def saveProgress(tickers, fileName="progress.txt"):
+def saveProgress(tickers: list, fileName="progress.txt"):
     progressFile = open(fileName, "a", encoding="utf-8")
     tickers[0] = "\n" + tickers[0]
     progressFile.write("\n".join(tickers))
+    progressFile.close()
+    print("SAVED PROGRESS.")
+
+
+def saveTickerProgress(ticker: str, filename):
+    progressFile = open(filename, "w", encoding="utf-8")
+    progressFile.write("\n" + ticker)
     progressFile.close()
     print("SAVED PROGRESS.")
 
@@ -200,16 +207,51 @@ def processData():
     # create another connection to a database file that will store the data in data.db and indicator values
     newDataConn = createConnection(dbFile=".idea/completeData.db")
 
-    tickersFile = open("tickers.txt", "r", encoding="utf-8")
-    tickers = [ticker.strip("\n") for ticker in tickersFile]
+    tickersFile = open("progress.txt", "r", encoding="utf-8")
+    tickers = list(set([ticker.strip("\n") for ticker in tickersFile]))
     tickersFile.close()
 
+    if not tableExists(newDataConn, "Stocks"):
+        SQL_COMMAND_CREATE_TABLE = '''CREATE TABLE Stocks
+                                    (Ticker text,
+                                    Date text,
+                                    Open text,
+                                    High text,
+                                    Low text,
+                                    Close text,
+                                    Volume text,
+                                    SMA text,
+                                    ADX text,
+                                    BBands text,
+                                    EMA text,
+                                    MACD text,
+                                    RSI text,
+                                    STOCH text);'''
+        createTable(newDataConn, SQL_COMMAND_CREATE_TABLE)
+
     for ticker in tickers:
+        progress = getProgress("newProgress.txt")
+        if progress is not None:
+            progress = set(progress)
+            if ticker in progress:
+                continue
+
         data = selectDataByTicker(dataConn, ticker)
 
-        indicators = Indicators(data)
-        indicators.MACD()
+        print(data)
 
+        indicators = Indicators(data)
+        adxs = indicators.ADX()
+        bbands = indicators.BBands()
+        emas = indicators.EMA()
+        macds = indicators.MACD()
+        stochs = indicators.STOCH()
+        rsis = indicators.RSI()
+
+        #
+        # SQL_COMMAND_INSERT_DATA = f'''INSERT INTO Stocks (Ticker, Date, Open, High, Low, Close, Volume)
+        #             Values ("{cTicker}", "{entry["datetime"]}", "{entry["open"]}", "{entry["high"]}", "{entry["low"]}",
+        #             "{entry["low"]}", "{entry["volume"]}")'''
         break
 
 
