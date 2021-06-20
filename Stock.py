@@ -144,7 +144,7 @@ def getData():
         if index % 9 != 0:
             tickerBatch.append(ticker)
         # we are at the last ticker
-        elif position == len(tickers) - 1:
+        elif position == len(tickers):
             # we will do a request with whatever is left
             ts = td.time_series(
                 symbol=tickerBatch,
@@ -156,7 +156,7 @@ def getData():
 
             for cTicker, cData in cachedData.items():
                 for entry in cData:
-                    SQL_COMMAND_INSERT_DATA = f'''INSERT INTO Stocks (Ticker, Date, Open, High, Low, Close, Volume) 
+                    SQL_COMMAND_INSERT_DATA = f'''INSERT INTO Stocks (Ticker, Date, Open, High, Low, Close, Volume)
                     Values ("{cTicker}", "{entry["datetime"]}", "{entry["open"]}", "{entry["high"]}", "{entry["low"]}",
                     "{entry["low"]}", "{entry["volume"]}")'''
                     insertData(conn, insertDataSQL=SQL_COMMAND_INSERT_DATA)
@@ -175,7 +175,7 @@ def getData():
 
             for cTicker, cData in cachedData.items():
                 for entry in cData:
-                    SQL_COMMAND_INSERT_DATA = f'''INSERT INTO Stocks (Ticker, Date, Open, High, Low, Close, Volume) 
+                    SQL_COMMAND_INSERT_DATA = f'''INSERT INTO Stocks (Ticker, Date, Open, High, Low, Close, Volume)
                     Values ("{cTicker}", "{entry["datetime"]}", "{entry["open"]}", "{entry["high"]}", "{entry["low"]}",
                     "{entry["low"]}", "{entry["volume"]}")'''
                     insertData(conn, insertDataSQL=SQL_COMMAND_INSERT_DATA)
@@ -207,14 +207,12 @@ def processData():
     for ticker in tickers:
         data = selectDataByTicker(dataConn, ticker)
 
-        # for row in data:
-        #     print(row)
         indicators = Indicators(data)
-        indicators.SMA()
+        indicators.MACD()
 
         break
 
 
-getData()
+# getData()
 
-# processData()
+processData()
