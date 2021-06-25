@@ -1,0 +1,38 @@
+# Matrices
+adx[, "ADX"]
+bband[, "up"] bband[, "dn"] bband[, "mavg"] bband[, "pctB"]
+c_stoch[, "fastK"] c_stoch[, "fastD"] c_stoch[, "slowD"]
+macd[, "signal"] macd[, "macd"]
+
+# Arrays
+ema
+sma
+rsi
+DataFrame names:
+
+    
+
+
+
+    # ADX
+    adxs = append(adxs, adx[, "ADX"])
+
+    # STOCH
+    stochsFastK = append(stochsFastK, c_stoch[, "fastK"])
+    stochsFastD = append(stochsFastD, c_stoch[, "fastD"])
+    stochsSlowD = append(stochsSlowD, c_stoch[, "slowD"])
+
+    #BBands
+    bbandsUp = append(bbandsUp, bband[, "up"])
+    bbandsDown = append(bbandsDown, bband[, "dn"])
+    bbandsMiddle = append(bbandsMiddle, bband[, "mavg"])
+    percentB = append(percentB, bband[, "pctB"])
+
+    # RSI
+    rsis = append(rsis, rsi)
+    # Moving Averages
+    smas = append(smas, sma)
+    emas = append(emas, ema)
+    # MACD
+    macds = append(macds, macd[, "macd"])
+    signals = append(signals, macd[, "signal"]) 		`

@@ -3,9 +3,12 @@ from twelvedata import TDClient
 from dotenv import load_dotenv
 from time import sleep
 from json import dump, load
-from Indicators import Indicators
 from datetime import datetime
 import os
+import csv
+import pandas as pd
+from json import dump
+# import Indicators as indicator
 import sqlite3
 
 
@@ -200,61 +203,84 @@ def getData():
         index += 1
 
 
+def convertDataToCSV():
+    conn = createConnection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM Stocks")
+
+    rows = cursor.fetchall()
+
+    with open("data.csv", "w", encoding="utf-8", newline='') as file:
+        csvWriter = csv.writer(file)
+        header = ["Ticker", "Date", "Open", "High", "Low", "Close", "Volume"]
+
+        csvWriter.writerow(header)
+        for row in rows:
+            print(row)
+            csvWriter.writerow(row)
+
+
+def priceDifference(data: list) -> dict:
+    df = pd.DataFrame(data, columns=["Ticker", "Date", "Open", "High", "Low", "Close", "Volume"])
+    priceDifferences = {}
+    days = [1, 2, 3, 5, 8, 13, 21, 34]
+    size = len(df.index)
+    for index in range(size):
+        date = df.Date[index]
+        close = float(df.Close[index])
+
+        c_priceDifferences = {}
+        for day in days:
+            # if it is not within the dataset
+            daysAfter = index + day
+            if not daysAfter < size:
+                break
+            futurePrice = float(df.Close[daysAfter])
+            c_priceDifferences[f"{day} Days After"] = futurePrice - close
+
+        priceDifferences[date] = c_priceDifferences
+
+    return priceDifferences
+
+
 def processData():
-    # create a connection to a data.db which contains the basic numeric information to perform indicator calculations
-    dataConn = createConnection()
+    """
+    Calculate the price difference between two stocks and record them
+    :return:
+    """
 
-    # create another connection to a database file that will store the data in data.db and indicator values
-    newDataConn = createConnection(dbFile=".idea/completeData.db")
+    # there are some tickers that are not usable for analysis
+    badTickers = [x.strip("\n") for x in open("Data/badTicker.txt", "r", encoding="utf-8")]
 
-    tickersFile = open("progress.txt", "r", encoding="utf-8")
-    tickers = list(set([ticker.strip("\n") for ticker in tickersFile]))
-    tickersFile.close()
+    # list of tickers
+    tickers = [x.strip("\n") for x in open("tickers.txt", "r", encoding="utf-8")]
 
-    if not tableExists(newDataConn, "Stocks"):
-        SQL_COMMAND_CREATE_TABLE = '''CREATE TABLE Stocks
-                                    (Ticker text,
-                                    Date text,
-                                    Open text,
-                                    High text,
-                                    Low text,
-                                    Close text,
-                                    Volume text,
-                                    SMA text,
-                                    ADX text,
-                                    BBands text,
-                                    EMA text,
-                                    MACD text,
-                                    RSI text,
-                                    STOCH text);'''
-        createTable(newDataConn, SQL_COMMAND_CREATE_TABLE)
+    conn = createConnection()
 
+    index = 0
+    d_Tickers = {}
     for ticker in tickers:
-        progress = getProgress("newProgress.txt")
-        if progress is not None:
-            progress = set(progress)
-            if ticker in progress:
-                continue
+        if ticker in badTickers:
+            continue
 
-        data = selectDataByTicker(dataConn, ticker)
+        tickerData = selectDataByTicker(conn, ticker)
 
-        print(data)
+        # if the list is empty
+        if not tickerData:
+            continue
+        tickerData = tickerData[::-1]
 
-        indicators = Indicators(data)
-        adxs = indicators.ADX()
-        bbands = indicators.BBands()
-        emas = indicators.EMA()
-        macds = indicators.MACD()
-        stochs = indicators.STOCH()
-        rsis = indicators.RSI()
+        d_Tickers[ticker] = priceDifference(tickerData)
 
-        #
-        # SQL_COMMAND_INSERT_DATA = f'''INSERT INTO Stocks (Ticker, Date, Open, High, Low, Close, Volume)
-        #             Values ("{cTicker}", "{entry["datetime"]}", "{entry["open"]}", "{entry["high"]}", "{entry["low"]}",
-        #             "{entry["low"]}", "{entry["volume"]}")'''
-        break
+        print(f"Finished {ticker}")
+
+    with open("PriceDifferences.json", "w", encoding="utf-8") as outfile:
+        dump(d_Tickers, outfile)
 
 
 # getData()
+
+# convertDataToCSV()
 
 processData()
