@@ -224,7 +224,7 @@ def convertDataToCSV():
 def priceDifference(data: list) -> dict:
     df = pd.DataFrame(data, columns=["Ticker", "Date", "Open", "High", "Low", "Close", "Volume"])
     priceDifferences = {}
-    days = [1, 2, 3, 5, 8, 13, 21, 34]
+    days = [1, 3, 8, 13, 21, 34, 100, 200, 300, 400]
     size = len(df.index)
     for index in range(size):
         date = df.Date[index]
@@ -235,9 +235,11 @@ def priceDifference(data: list) -> dict:
             # if it is not within the dataset
             daysAfter = index + day
             if not daysAfter < size:
-                break
-            futurePrice = float(df.Close[daysAfter])
-            c_priceDifferences[f"{day} Days After"] = futurePrice - close
+                c_priceDifferences[f"{day} Day(s) After"] = None
+                continue
+
+            futPrevPrice = float(df.Close[daysAfter])
+            c_priceDifferences[f"{day} Day(s) After"] = futPrevPrice - close
 
         priceDifferences[date] = c_priceDifferences
 
@@ -258,9 +260,17 @@ def processData():
 
     conn = createConnection()
 
+    directory = [file.strip(".json").split("_")[0] for file in os.listdir("Price_Difference_Data")]
+
     index = 0
-    d_Tickers = {}
+
     for ticker in tickers:
+        # there are already existing files within this directory
+        if len(directory) != 0 and ticker in directory:
+            print(f"{ticker} has already been recorded and calculated.")
+            continue
+
+        d_Tickers = {}
         if ticker in badTickers:
             continue
 
@@ -269,15 +279,15 @@ def processData():
         # if the list is empty
         if not tickerData:
             continue
+
         tickerData = tickerData[::-1]
 
         d_Tickers[ticker] = priceDifference(tickerData)
 
+        fileName = f"Price_Difference_Data/{ticker}_PriceDifferences.json"
+        with open(fileName, "w", encoding="utf-8") as outfile:
+            dump(d_Tickers, outfile)
         print(f"Finished {ticker}")
-
-    with open("PriceDifferences.json", "w", encoding="utf-8") as outfile:
-        dump(d_Tickers, outfile)
-
 
 # getData()
 
