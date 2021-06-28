@@ -289,8 +289,18 @@ def processData():
             dump(d_Tickers, outfile)
         print(f"Finished {ticker}")
 
-# getData()
 
-# convertDataToCSV()
+def convertAllDataToCSV():
+    progress = getProgress("newProgress.txt")
+    directory = [file.strip(".json").split("_")[0] for file in os.listdir("Price_Difference_Data")]
 
-processData()
+    print(directory)
+
+    if progress is not None:
+        pass
+
+
+# processData()
+
+convertAllDataToCSV()
+
