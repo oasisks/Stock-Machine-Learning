@@ -7,7 +7,7 @@ from datetime import datetime
 import os
 import csv
 import pandas as pd
-from json import dump
+from json import dump, load
 # import Indicators as indicator
 import sqlite3
 
@@ -28,17 +28,22 @@ def saveJsonFile(fileName="data.json", data=None):
 
 def saveProgress(tickers: list, fileName="progress.txt"):
     progressFile = open(fileName, "a", encoding="utf-8")
-    tickers[0] = "\n" + tickers[0]
+    if os.stat(fileName).st_size != 0:
+        tickers[0] = "\n" + tickers[0]
     progressFile.write("\n".join(tickers))
     progressFile.close()
     print("SAVED PROGRESS.")
 
 
-def saveTickerProgress(ticker: str, filename):
-    progressFile = open(filename, "w", encoding="utf-8")
-    progressFile.write("\n" + ticker)
+def saveProgressT(ticker, fileName="newProgress.txt"):
+    progressFile = open(fileName, "a", encoding="utf-8")
+    if os.stat(fileName).st_size == 0:
+        progressFile.write(ticker)
+    else:
+        progressFile.write("\n" + ticker)
+
     progressFile.close()
-    print("SAVED PROGRESS.")
+    print(f"SAVED PROGRESS: {ticker}")
 
 
 def getProgress(fileName="progress.txt"):
@@ -296,11 +301,47 @@ def convertAllDataToCSV():
 
     print(directory)
 
-    if progress is not None:
-        pass
+    finalData = open("FinalData.csv", "a", encoding="utf-8", newline='')
 
+    fieldNames = ["Ticker", "Date", "ADX", "STOCHFK", "STOCHFD",
+                  "STOCHSD", "BBandsUp", "BbandsDn", "BbandsMiddle",
+                  "PercentB", "RSI", "SMA", "EMA", "MACD", "Signal",
+                  "1 Day(s) After", "3 Day(s) After", "8 Day(s) After",
+                  "13 Day(s) After", "21 Day(s) After", "34 Day(s) After",
+                  "100 Day(s) After", "200 Day(s) After", "300 Day(s) After",
+                  "400 Day(s) After"]
+
+    finalDataCSVWriter = csv.DictWriter(finalData, fieldnames=fieldNames)
+
+    if os.stat("FinalData.csv").st_size == 0:
+        finalDataCSVWriter.writeheader()
+
+    for ticker in directory:
+        if progress is not None:
+            if ticker in progress:
+                print(f"Already recorded {ticker}.")
+                continue
+        data = open(f"Data/{ticker}.csv", "r", encoding="utf-8")
+        data = list(csv.DictReader(data))
+        jsonPriceDifferences = open(f"Price_Difference_Data/{ticker}_PriceDifferences.json", "r", encoding="utf-8")
+        jsonPriceDifferences = load(jsonPriceDifferences)
+        for index, date in enumerate(jsonPriceDifferences[ticker]):
+            d_data = data[index]
+            p_data = jsonPriceDifferences[ticker][date]
+            c_Data = {"Ticker": ticker, "Date": date, "ADX": d_data["ADX"], "STOCHFK": d_data["STOCHFK"],
+                      "STOCHFD": d_data["STOCHFD"], "BBandsUp": d_data["BBandsUp"], "BbandsDn": d_data["BbandsDn"],
+                      "BbandsMiddle": d_data["BbandsMiddle"], "PercentB": d_data["PercentB"], "RSI": d_data["RSI"],
+                      "SMA": d_data["SMA"], "EMA": d_data["EMA"], "MACD": d_data["MACD"], "Signal": d_data["Signal"],
+                      "1 Day(s) After": p_data["1 Day(s) After"], "3 Day(s) After": p_data["3 Day(s) After"],
+                      "8 Day(s) After": p_data["8 Day(s) After"], "13 Day(s) After": p_data["13 Day(s) After"],
+                      "21 Day(s) After": p_data["21 Day(s) After"], "34 Day(s) After": p_data["34 Day(s) After"],
+                      "100 Day(s) After": p_data["100 Day(s) After"], "200 Day(s) After": p_data["200 Day(s) After"],
+                      "300 Day(s) After": p_data["300 Day(s) After"], "400 Day(s) After": p_data["400 Day(s) After"]}
+            finalDataCSVWriter.writerow(c_Data)
+
+        saveProgressT(ticker)
 
 # processData()
 
-convertAllDataToCSV()
 
+convertAllDataToCSV()
