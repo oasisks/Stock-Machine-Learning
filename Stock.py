@@ -7,6 +7,7 @@ from datetime import datetime
 import os
 import csv
 import pandas as pd
+import datetime
 from json import dump, load
 # import Indicators as indicator
 import sqlite3
@@ -14,6 +15,10 @@ import sqlite3
 
 # Twelve Data API: https://twelvedata.com/docs#getting-started
 # Twelve Data GitHub: https://github.com/twelvedata/twelvedata-python
+def convertToUTC(dateTimeStr):
+    date_time_obj = datetime.datetime.strptime(dateTimeStr, '%Y-%m-%d')
+    return date_time_obj.timestamp()
+
 
 def saveJsonFile(fileName="data.json", data=None):
     """
@@ -43,7 +48,7 @@ def saveProgressT(ticker, fileName="newProgress.txt"):
         progressFile.write("\n" + ticker)
 
     progressFile.close()
-    print(f"SAVED PROGRESS: {ticker}")
+    # print(f"SAVED PROGRESS: {ticker}")
 
 
 def getProgress(fileName="progress.txt"):
@@ -251,6 +256,26 @@ def priceDifference(data: list) -> dict:
     return priceDifferences
 
 
+def historicalData(data: list, previousDays: int = 300) -> dict:
+    df = pd.DataFrame(data[::-1], columns=["Ticker", "Date", "Open", "High", "Low", "Close", "Volume"])
+
+    histData = {}
+    size = len(df.index)
+
+    for index in range(size):
+        # any dates that cannot record the previous 'previousDays' days worth of prices are invalid
+        validRange = index - previousDays + 1
+        date = df.Date[index]
+        if validRange < 0:
+            continue
+        c_hist = {}
+
+        for c_index in range(previousDays):
+            c_hist[f"{previousDays - c_index} Day(s) Ago"] = df.Close[validRange + c_index]
+        histData[date] = c_hist
+    return histData
+
+
 def processData():
     """
     Calculate the price difference between two stocks and record them
@@ -298,50 +323,84 @@ def processData():
 def convertAllDataToCSV():
     progress = getProgress("newProgress.txt")
     directory = [file.strip(".json").split("_")[0] for file in os.listdir("Price_Difference_Data")]
+    conn = createConnection()
 
-    print(directory)
+    training = open("training.csv", "w", encoding="utf-8", newline='')
+    labels = open("labels.csv", "w", encoding="utf-8", newline='')
+    oneDayLabels = open("oneDay.csv", "w", encoding="utf-8", newline='')
 
-    finalData = open("FinalData.csv", "a", encoding="utf-8", newline='')
+    fieldNamesTraining = ["Ticker", "Date", "ADX", "STOCHFK", "STOCHFD",
+                          "STOCHSD", "BBandsUp", "BbandsDn", "BbandsMiddle",
+                          "PercentB", "RSI", "SMA", "EMA", "MACD", "Signal"]
+    previousDaysHeaders = []
 
-    fieldNames = ["Ticker", "Date", "ADX", "STOCHFK", "STOCHFD",
-                  "STOCHSD", "BBandsUp", "BbandsDn", "BbandsMiddle",
-                  "PercentB", "RSI", "SMA", "EMA", "MACD", "Signal",
-                  "1 Day(s) After", "3 Day(s) After", "8 Day(s) After",
-                  "13 Day(s) After", "21 Day(s) After", "34 Day(s) After",
-                  "100 Day(s) After", "200 Day(s) After", "300 Day(s) After",
-                  "400 Day(s) After"]
+    previousDays = 300
 
-    finalDataCSVWriter = csv.DictWriter(finalData, fieldnames=fieldNames)
+    for index in range(previousDays):
+        fieldNamesTraining.append(f"{index + 1} Day(s) Ago")
+        previousDaysHeaders.append(f"{index + 1} Day(s) Ago")
 
-    if os.stat("FinalData.csv").st_size == 0:
-        finalDataCSVWriter.writeheader()
+    fieldNamesLabels = ["1 Day(s) After", "3 Day(s) After", "8 Day(s) After",
+                        "13 Day(s) After", "21 Day(s) After", "34 Day(s) After",
+                        "100 Day(s) After", "200 Day(s) After", "300 Day(s) After",
+                        "400 Day(s) After"]
+    fieldNamesOneDayLabels = ["1 Day(s) After"]
+
+    # the output csv files
+    trainingCSVWriter = csv.DictWriter(training, fieldnames=fieldNamesTraining)
+    labelsCSVWriter = csv.DictWriter(labels, fieldnames=fieldNamesLabels)
+    oneDayLabelsCSVWriter = csv.DictWriter(oneDayLabels, fieldnames=fieldNamesOneDayLabels)
+
+    if os.stat("training.csv").st_size == 0:
+        trainingCSVWriter.writeheader()
+    if os.stat("labels.csv").st_size == 0:
+        labelsCSVWriter.writeheader()
+    if os.stat("oneDay.csv").st_size == 0:
+        oneDayLabelsCSVWriter.writeheader()
 
     for ticker in directory:
         if progress is not None:
             if ticker in progress:
-                print(f"Already recorded {ticker}.")
                 continue
+
+        # select data from the database
+        tickerData = selectDataByTicker(conn, ticker)
+
+        tickerHistory = historicalData(tickerData, previousDays)
+        # print(tickerHistory)
+        # print(fieldNamesTraining)
+        # opens processed data
         data = open(f"Data/{ticker}.csv", "r", encoding="utf-8")
         data = list(csv.DictReader(data))
         jsonPriceDifferences = open(f"Price_Difference_Data/{ticker}_PriceDifferences.json", "r", encoding="utf-8")
         jsonPriceDifferences = load(jsonPriceDifferences)
+
+        # incorporate all processed data into one csv file
         for index, date in enumerate(jsonPriceDifferences[ticker]):
             d_data = data[index]
             p_data = jsonPriceDifferences[ticker][date]
-            c_Data = {"Ticker": ticker, "Date": date, "ADX": d_data["ADX"], "STOCHFK": d_data["STOCHFK"],
-                      "STOCHFD": d_data["STOCHFD"], "BBandsUp": d_data["BBandsUp"], "BbandsDn": d_data["BbandsDn"],
-                      "BbandsMiddle": d_data["BbandsMiddle"], "PercentB": d_data["PercentB"], "RSI": d_data["RSI"],
-                      "SMA": d_data["SMA"], "EMA": d_data["EMA"], "MACD": d_data["MACD"], "Signal": d_data["Signal"],
-                      "1 Day(s) After": p_data["1 Day(s) After"], "3 Day(s) After": p_data["3 Day(s) After"],
-                      "8 Day(s) After": p_data["8 Day(s) After"], "13 Day(s) After": p_data["13 Day(s) After"],
-                      "21 Day(s) After": p_data["21 Day(s) After"], "34 Day(s) After": p_data["34 Day(s) After"],
-                      "100 Day(s) After": p_data["100 Day(s) After"], "200 Day(s) After": p_data["200 Day(s) After"],
-                      "300 Day(s) After": p_data["300 Day(s) After"], "400 Day(s) After": p_data["400 Day(s) After"]}
-            finalDataCSVWriter.writerow(c_Data)
+            training_Data = {"Ticker": ticker, "Date": date, "ADX": d_data["ADX"], "STOCHFK": d_data["STOCHFK"],
+                             "STOCHFD": d_data["STOCHFD"], "BBandsUp": d_data["BBandsUp"], "STOCHSD": d_data["STOCHSD"],
+                             "BbandsDn": d_data["BbandsDn"],
+                             "BbandsMiddle": d_data["BbandsMiddle"], "PercentB": d_data["PercentB"],
+                             "RSI": d_data["RSI"],
+                             "SMA": d_data["SMA"], "EMA": d_data["EMA"], "MACD": d_data["MACD"],
+                             "Signal": d_data["Signal"]}
+            label_Data = {"1 Day(s) After": p_data["1 Day(s) After"], "3 Day(s) After": p_data["3 Day(s) After"],
+                          "34 Day(s) After": p_data["34 Day(s) After"], "200 Day(s) After": p_data["200 Day(s) After"],
+                          "300 Day(s) After": p_data["300 Day(s) After"], "400 Day(s) After": p_data["400 Day(s) After"]}
+            oneDayLabel_data = {"1 Day(s) After": p_data["1 Day(s) After"]}
 
-        saveProgressT(ticker)
-
-# processData()
+            if date in tickerHistory:
+                history = tickerHistory[date]
+                for previousDay, closingPrice in history.items():
+                    training_Data[previousDay] = float(closingPrice)
+            else:
+                for header in previousDaysHeaders:
+                    training_Data[header] = "NA"
+            trainingCSVWriter.writerow(training_Data)
+            labelsCSVWriter.writerow(label_Data)
+            oneDayLabelsCSVWriter.writerow(oneDayLabel_data)
 
 
 convertAllDataToCSV()
